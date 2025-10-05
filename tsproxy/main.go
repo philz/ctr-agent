@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"flag"
 	"fmt"
@@ -9,6 +10,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -47,6 +49,15 @@ func main() {
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
+
+	// Start port 80 status server
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		if err := serveStatusPage(ctx, srv, *allowSelfOnly); err != nil {
+			log.Printf("Error serving status page on port 80: %v", err)
+		}
+	}()
 
 	for _, port := range portList {
 		wg.Add(1)
@@ -167,4 +178,223 @@ func servePort(ctx context.Context, srv *tsnet.Server, port int, allowSelfOnly b
 	}
 
 	return server.Serve(ln)
+}
+
+func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool) error {
+	ln, err := srv.Listen("tcp", ":80")
+	if err != nil {
+		return fmt.Errorf("failed to listen on port 80: %v", err)
+	}
+	defer ln.Close()
+
+	lc, err := srv.LocalClient()
+	if err != nil {
+		return fmt.Errorf("failed to get local client: %v", err)
+	}
+
+	var allowedIdentity string
+	var identityLock sync.Mutex
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		identity := r.RemoteAddr
+
+		// Try to get Tailscale user info
+		whois, err := lc.WhoIs(r.Context(), r.RemoteAddr)
+		if err == nil && whois != nil && whois.UserProfile != nil {
+			if whois.UserProfile.LoginName != "" {
+				identity = whois.UserProfile.LoginName
+			}
+		}
+
+		// Check if access is restricted to self only
+		if allowSelfOnly {
+			identityLock.Lock()
+			if allowedIdentity == "" {
+				allowedIdentity = identity
+				log.Printf("[Port 80] Restricting access to: %s", allowedIdentity)
+			}
+			identityLock.Unlock()
+
+			if identity != allowedIdentity {
+				log.Printf("[Port 80] DENIED %s %s %s (from %s, expected %s)", r.Method, r.URL.Path, r.Proto, identity, allowedIdentity)
+				http.Error(w, "Forbidden: Access restricted to owner only", http.StatusForbidden)
+				return
+			}
+		}
+
+		log.Printf("[Port 80] %s %s %s (from %s)", r.Method, r.URL.Path, r.Proto, identity)
+
+		// Get listening ports
+		ports, err := getListeningPorts()
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Error getting listening ports: %v", err), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, "<html><head><title>Listening Ports</title></head><body>")
+		fmt.Fprintf(w, "<h1>Listening Ports</h1>")
+		fmt.Fprintf(w, "<table border='1' cellpadding='5' cellspacing='0'>")
+		fmt.Fprintf(w, "<tr><th>Port</th><th>Process</th><th>PID</th><th>Command</th></tr>")
+		for _, p := range ports {
+			fmt.Fprintf(w, "<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>",
+				p.Port, p.Process, p.PID, p.Command)
+		}
+		fmt.Fprintf(w, "</table></body></html>")
+	})
+
+	log.Printf("Serving status page on port 80")
+
+	server := &http.Server{
+		Handler: handler,
+	}
+
+	return server.Serve(ln)
+}
+
+type PortInfo struct {
+	Port    int
+	Process string
+	PID     string
+	Command string
+}
+
+func getListeningPorts() ([]PortInfo, error) {
+	// Check if /proc exists (Linux)
+	if _, err := os.Stat("/proc/net/tcp"); err != nil {
+		// Non-Linux system, return empty list
+		return []PortInfo{}, nil
+	}
+
+	var ports []PortInfo
+	seen := make(map[int]bool)
+
+	// Parse /proc/net/tcp for IPv4
+	if tcpPorts, err := parseProcNetTCP("/proc/net/tcp"); err == nil {
+		for _, p := range tcpPorts {
+			if !seen[p.Port] {
+				ports = append(ports, p)
+				seen[p.Port] = true
+			}
+		}
+	}
+
+	// Parse /proc/net/tcp6 for IPv6
+	if tcp6Ports, err := parseProcNetTCP("/proc/net/tcp6"); err == nil {
+		for _, p := range tcp6Ports {
+			if !seen[p.Port] {
+				ports = append(ports, p)
+				seen[p.Port] = true
+			}
+		}
+	}
+
+	return ports, nil
+}
+
+func parseProcNetTCP(path string) ([]PortInfo, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	var ports []PortInfo
+	scanner := bufio.NewScanner(file)
+
+	// Skip header line
+	scanner.Scan()
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Fields(line)
+		if len(fields) < 10 {
+			continue
+		}
+
+		// Field 1 is local_address (format: hex_ip:hex_port)
+		// Field 3 is st (state) - 0A = listening
+		// Field 7 is uid
+		// Field 9 is inode
+
+		if fields[3] != "0A" {
+			// Not in listening state
+			continue
+		}
+
+		// Parse port from local_address
+		localAddr := fields[1]
+		parts := strings.Split(localAddr, ":")
+		if len(parts) != 2 {
+			continue
+		}
+
+		portHex := parts[1]
+		port, err := strconv.ParseInt(portHex, 16, 64)
+		if err != nil {
+			continue
+		}
+
+		inode := fields[9]
+
+		// Find process info by inode
+		process, pid, command := findProcessByInode(inode)
+
+		ports = append(ports, PortInfo{
+			Port:    int(port),
+			Process: process,
+			PID:     pid,
+			Command: command,
+		})
+	}
+
+	return ports, scanner.Err()
+}
+
+func findProcessByInode(inode string) (string, string, string) {
+	// Scan /proc/*/fd/* to find which process has this socket
+	procDirs, err := filepath.Glob("/proc/[0-9]*/fd/*")
+	if err != nil {
+		return "unknown", "", ""
+	}
+
+	searchStr := fmt.Sprintf("socket:[%s]", inode)
+
+	for _, fdPath := range procDirs {
+		linkTarget, err := os.Readlink(fdPath)
+		if err != nil {
+			continue
+		}
+
+		if linkTarget == searchStr {
+			// Extract PID from path
+			parts := strings.Split(fdPath, "/")
+			if len(parts) < 3 {
+				continue
+			}
+			pid := parts[2]
+
+			// Read process name from /proc/PID/comm
+			commPath := filepath.Join("/proc", pid, "comm")
+			commData, err := os.ReadFile(commPath)
+			if err != nil {
+				return "unknown", pid, ""
+			}
+			process := strings.TrimSpace(string(commData))
+
+			// Read command line from /proc/PID/cmdline
+			cmdlinePath := filepath.Join("/proc", pid, "cmdline")
+			cmdlineData, err := os.ReadFile(cmdlinePath)
+			if err != nil {
+				return process, pid, ""
+			}
+			// Replace null bytes with spaces
+			command := strings.ReplaceAll(string(cmdlineData), "\x00", " ")
+			command = strings.TrimSpace(command)
+
+			return process, pid, command
+		}
+	}
+
+	return "unknown", "", ""
 }
