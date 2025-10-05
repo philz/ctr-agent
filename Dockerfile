@@ -109,6 +109,13 @@ RUN cd /tmp/tsproxy && \
 	rm -rf /tmp/tsproxy && \
 	go clean -cache -testcache -modcache
 
+# Build headless
+COPY headless /tmp/headless
+RUN cd /tmp/headless && \
+	go build -o $GOPATH/bin/headless ./cmd/headless && \
+	rm -rf /tmp/headless && \
+	go clean -cache -testcache -modcache
+
 RUN npx playwright install --with-deps
 
 # Copy the self-contained Chrome bundle from chromedp/headless-shell
