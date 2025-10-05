@@ -99,6 +99,7 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 	go install golang.org/x/tools/gopls@latest; \
 	go install mvdan.cc/gofumpt@latest; \
 	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
+	go install github.com/sorenisanerd/gotty@latest; \
 	go clean -cache -testcache -modcache
 
 # Build tsproxy

@@ -76,9 +76,13 @@ def get_default_config():
         "additional_panes": [
             {
                 "name": "tsproxy",
-                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsproxy -name {slug} -ports 9000; else sleep infinity; fi",
+                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsproxy -name {slug} -ports 8000-9999; else sleep infinity; fi",
                 # Alternative: use tsnsrv instead
                 # "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsnsrv -name {slug} -listenAddr :9000 -plaintext=true http://0.0.0.0:9000/; else sleep infinity; fi",
+            },
+            {
+                "name": "gotty",
+                "command": "/go/bin/gotty -w -p 8001 bash",
             },
         ],
     }
