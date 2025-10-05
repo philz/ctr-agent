@@ -101,6 +101,13 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
 	go clean -cache -testcache -modcache
 
+# Build tsproxy
+COPY tsproxy /tmp/tsproxy
+RUN cd /tmp/tsproxy && \
+	go build -o $GOPATH/bin/tsproxy . && \
+	rm -rf /tmp/tsproxy && \
+	go clean -cache -testcache -modcache
+
 RUN npx playwright install --with-deps
 
 # Copy the self-contained Chrome bundle from chromedp/headless-shell

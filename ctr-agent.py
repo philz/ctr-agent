@@ -27,12 +27,18 @@ def load_config():
     """Load configuration from JSON file."""
     config_path = Path.home() / ".config" / "ctr-agent.json"
 
+    # Always ensure config directories exist
+    ctr_agent_dir = Path.home() / ".config" / "ctr-agent"
+    (ctr_agent_dir / "codex").mkdir(parents=True, exist_ok=True)
+    (ctr_agent_dir / "claude").mkdir(parents=True, exist_ok=True)
+
     if not config_path.exists():
         config = get_default_config()
         # Write out default config
         config_path.parent.mkdir(parents=True, exist_ok=True)
         with open(config_path, "w") as f:
             json.dump(config, f, indent=2)
+
         print(f"Created default config at: {config_path}")
         print(f"Edit this file to customize your configuration")
         return config
@@ -69,8 +75,10 @@ def get_default_config():
         },
         "additional_panes": [
             {
-                "name": "tsnsrv",
-                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsnsrv -name {slug} -listenAddr :9000 -plaintext=true http://0.0.0.0:9000/; else sleep infinity; fi",
+                "name": "tsproxy",
+                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsproxy -name {slug} -ports 9000; else sleep infinity; fi",
+                # Alternative: use tsnsrv instead
+                # "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsnsrv -name {slug} -listenAddr :9000 -plaintext=true http://0.0.0.0:9000/; else sleep infinity; fi",
             },
         ],
     }
@@ -124,8 +132,8 @@ def inside_mode(args, config):
     # Create tmux session with additional panes if configured
     session_name = "s"
 
-    # Set tmux status bar to yellow
-    subprocess.run(["tmux", "set-option", "-g", "status-style", "bg=yellow,fg=black"], check=False)
+    # TODO: Set tmux status bar to yellow?
+    #subprocess.run(["tmux", "set-option", "-g", "status-style", "bg=yellow,fg=black"], check=False)
 
     if additional_panes:
         # Create detached tmux session
