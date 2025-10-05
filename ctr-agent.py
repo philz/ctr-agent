@@ -84,6 +84,10 @@ def get_default_config():
                 "name": "gotty",
                 "command": "/go/bin/gotty -w -p 8001 bash",
             },
+            {
+                "name": "headless",
+                "command": "/go/bin/headless start --foreground",
+            },
         ],
     }
 
