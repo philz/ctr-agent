@@ -25,7 +25,12 @@ ANIMALS = [
 
 def load_config():
     """Load configuration from JSON file."""
-    config_path = Path.home() / ".config" / "ctr-agent.json"
+    # Allow environment variable to override config path
+    config_path_str = os.environ.get("CTR_AGENT_CONFIG")
+    if config_path_str:
+        config_path = Path(config_path_str).expanduser()
+    else:
+        config_path = Path.home() / ".config" / "ctr-agent" / "config.json"
 
     # Always ensure config directories exist
     ctr_agent_dir = Path.home() / ".config" / "ctr-agent"
