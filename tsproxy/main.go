@@ -34,10 +34,16 @@ func main() {
 		log.Fatalf("Failed to parse ports: %v", err)
 	}
 
+	// Only enable verbose backend logs if TSPROXY_DEBUG is set
+	var logf func(string, ...any)
+	if os.Getenv("TSPROXY_DEBUG") != "" {
+		logf = log.Printf
+	}
+
 	srv := &tsnet.Server{
 		Hostname: *name,
 		AuthKey:  authKey,
-		Logf:     log.Printf,
+		Logf:     logf,
 	}
 
 	defer srv.Close()
