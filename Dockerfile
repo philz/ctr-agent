@@ -1,3 +1,5 @@
+# Customize this to your heart's desire!
+
 # Stage 1: Get Chrome/Chromium from chromedp/headless-shell
 FROM docker.io/chromedp/headless-shell:stable AS chrome
 
@@ -27,8 +29,8 @@ RUN printf '%s\n' \
 
 # Install system packages (removed chromium, will use headless-shell instead)
 RUN apt-get update; \
-	apt-get install -y --no-install-recommends \
-		ca-certificates wget tmux \
+	apt-get install -y --no-install-recommends tmux \
+		ca-certificates wget \
 		git jq sqlite3 gh ripgrep fzf python3 curl vim lsof iproute2 less \
 		docker.io docker-compose-v2 docker-buildx \
 		make python3-pip python-is-python3 tree net-tools file build-essential \
@@ -106,24 +108,18 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 COPY tsproxy /tmp/tsproxy
 RUN cd /tmp/tsproxy && \
 	go build -o $GOPATH/bin/tsproxy . && \
-	rm -rf /tmp/tsproxy && \
-	go clean -cache -testcache -modcache
+	rm -rf /tmp/tsproxy
 
 # Build headless
 COPY headless /tmp/headless
 RUN cd /tmp/headless && \
 	go build -o $GOPATH/bin/headless ./cmd/headless && \
-	rm -rf /tmp/headless && \
-	go clean -cache -testcache -modcache
-
-RUN npx playwright install --with-deps
+	go clean -cache -testcache -modcache && \
+	rm -rf /tmp/headless
 
 # Copy the self-contained Chrome bundle from chromedp/headless-shell
 COPY --from=chrome /headless-shell /headless-shell
 ENV PATH="/headless-shell:${PATH}"
-
-ENV GOTOOLCHAIN=auto
-ENV SKETCH=1
 
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
