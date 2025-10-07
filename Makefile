@@ -9,7 +9,7 @@ IMAGE_TAG := container-agent:dev
 
 build:
 	@echo "Building Docker image with git user: $(GIT_USER_NAME) <$(GIT_USER_EMAIL)>"
-	docker build \
+	docker build --progress=plain \
 		--build-arg GIT_USER_NAME="$(GIT_USER_NAME)" \
 		--build-arg GIT_USER_EMAIL="$(GIT_USER_EMAIL)" \
 		-t $(IMAGE_TAG) .

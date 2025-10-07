@@ -121,12 +121,13 @@ RUN cd /tmp/headless && \
 COPY --from=chrome /headless-shell /headless-shell
 ENV PATH="/headless-shell:${PATH}"
 
-# Configure git with build-time arguments
-RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
-
 # Set ownership of key directories to agent user
 RUN chown -R agent:agent /opt/node22 /go
 
 # Switch to agent user
 USER agent
+
+# Configure git with build-time arguments
+RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
+
 WORKDIR /home/agent
