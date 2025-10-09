@@ -130,4 +130,7 @@ USER agent
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
+# Install subtrace
+RUN curl -fsSL https://subtrace.dev/install.sh | sh
+
 WORKDIR /home/agent
