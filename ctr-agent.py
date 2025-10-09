@@ -4,6 +4,7 @@ import getpass
 import json
 import os
 import random
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -468,15 +469,19 @@ def outside_mode(args, config):
             print(f"\nGotty URL: http://{args.slug}:8001/")
             print(f"\nTo attach a terminal, run:")
             print(f"  docker exec -it {args.slug} tmux attach")
-            print(f"\nWaiting for container to exit (press Ctrl+C to detach)...")
+            print(f"\nWaiting for container to exit (press Ctrl+C to stop container)...")
+
+            # Set up signal handler for Ctrl-C
+            def stop_container_handler(signum, frame):
+                print(f"\n\nReceived interrupt signal. Stopping container {args.slug}...")
+                subprocess.run(["docker", "stop", args.slug], check=False)
+                print(f"Container {args.slug} stopped.")
+                sys.exit(0)
+
+            signal.signal(signal.SIGINT, stop_container_handler)
 
             # Wait for the container to exit
-            try:
-                subprocess.run(["docker", "wait", args.slug], check=False)
-            except KeyboardInterrupt:
-                print(f"\n\nDetached from container. Container is still running.")
-                print(f"To reattach: docker exec -it {args.slug} tmux attach")
-                print(f"To stop: docker stop {args.slug}")
+            subprocess.run(["docker", "wait", args.slug], check=False)
         else:
             print(f"Failed to start container: {result.stderr}")
     else:
