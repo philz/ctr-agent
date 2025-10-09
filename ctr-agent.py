@@ -353,19 +353,61 @@ def outside_mode(args, config):
             def do_GET(self):
                 import subprocess
                 import time
+                import json
+                import platform
 
                 target_url = f"http://{args.slug}:8001/"
                 timeout = 20
                 start_time = time.time()
 
-                # Try to resolve the hostname with timeout using dig against Tailscale DNS
-                # This avoids spoiling the cache that getaddrinfo would cause
+                # Get MagicDNSSuffix from Tailscale
+                magic_dns_suffix = None
+                tailscale_error = None
+
+                # Try to find tailscale binary
+                tailscale_paths = ["tailscale"]
+                if platform.system() == "Darwin":
+                    tailscale_paths.append("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+
+                for ts_path in tailscale_paths:
+                    try:
+                        result = subprocess.run(
+                            [ts_path, "status", "-json"],
+                            capture_output=True,
+                            text=True,
+                            timeout=5
+                        )
+                        if result.returncode == 0:
+                            ts_status = json.loads(result.stdout)
+                            magic_dns_suffix = ts_status.get("MagicDNSSuffix", "").rstrip(".")
+                            if magic_dns_suffix:
+                                break
+                        else:
+                            tailscale_error = f"tailscale status failed: {result.stderr}"
+                    except FileNotFoundError:
+                        tailscale_error = f"tailscale binary not found at: {ts_path}"
+                    except subprocess.TimeoutExpired:
+                        tailscale_error = "tailscale status command timed out"
+                    except json.JSONDecodeError as e:
+                        tailscale_error = f"failed to parse tailscale status JSON: {e}"
+
+                # If we couldn't get MagicDNSSuffix, fail immediately
+                if not magic_dns_suffix:
+                    self.send_response(500)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    error_msg = tailscale_error or "Could not determine Tailscale MagicDNSSuffix"
+                    self.wfile.write(f"<html><body><h1>Error</h1><p>{error_msg}</p></body></html>".encode())
+                    return
+
+                # Try to resolve the full hostname with dig
+                full_hostname = f"{args.slug}.{magic_dns_suffix}"
                 resolved = False
                 while time.time() - start_time < timeout:
                     try:
-                        # Use dig against Tailscale nameservers (100.100.100.100)
+                        # Use dig to query the full hostname against Tailscale DNS
                         result = subprocess.run(
-                            ["dig", "+noall", "+answer", args.slug, "@100.100.100.100"],
+                            ["dig", "+noall", "+answer", full_hostname, "@100.100.100.100"],
                             capture_output=True,
                             text=True,
                             timeout=2
