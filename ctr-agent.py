@@ -351,22 +351,32 @@ def outside_mode(args, config):
                 pass  # Suppress logging
 
             def do_GET(self):
-                import socket
+                import subprocess
                 import time
 
                 target_url = f"http://{args.slug}:8001/"
                 timeout = 20
                 start_time = time.time()
 
-                # Try to resolve the hostname with timeout
+                # Try to resolve the hostname with timeout using dig against Tailscale DNS
+                # This avoids spoiling the cache that getaddrinfo would cause
                 resolved = False
                 while time.time() - start_time < timeout:
                     try:
-                        socket.getaddrinfo(args.slug, 8001, socket.AF_UNSPEC, socket.SOCK_STREAM)
-                        resolved = True
-                        break
-                    except socket.gaierror:
-                        time.sleep(0.5)
+                        # Use dig against Tailscale nameservers (100.100.100.100)
+                        result = subprocess.run(
+                            ["dig", "+noall", "+answer", args.slug, "@100.100.100.100"],
+                            capture_output=True,
+                            text=True,
+                            timeout=2
+                        )
+                        # Check if we got a valid answer (non-empty output)
+                        if result.returncode == 0 and result.stdout.strip():
+                            resolved = True
+                            break
+                    except (subprocess.TimeoutExpired, FileNotFoundError):
+                        pass
+                    time.sleep(0.5)
 
                 if resolved:
                     self.send_response(302)
