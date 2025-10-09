@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -134,6 +135,12 @@ func (s *Server) handleWeb(w http.ResponseWriter, r *http.Request) {
             border-radius: 5px;
             min-height: 100px;
         }
+        #screenshot {
+            margin-top: 20px;
+            max-width: 100%;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
         .success { color: green; }
         .error { color: red; }
     </style>
@@ -156,8 +163,7 @@ func (s *Server) handleWeb(w http.ResponseWriter, r *http.Request) {
 
     <div class="command">
         <h3>Screenshot</h3>
-        <input type="text" id="screenshotPath" placeholder="/path/to/screenshot.png">
-        <button onclick="screenshot()">Take Screenshot</button>
+        <button onclick="screenshot()">Show Screenshot</button>
     </div>
 
     <div class="command">
@@ -179,6 +185,7 @@ func (s *Server) handleWeb(w http.ResponseWriter, r *http.Request) {
     </div>
 
     <div id="output"></div>
+    <img id="screenshot" style="display: none;">
 
     <script>
         function showOutput(message, isError = false) {
@@ -218,15 +225,20 @@ func (s *Server) handleWeb(w http.ResponseWriter, r *http.Request) {
         }
 
         async function screenshot() {
-            const path = document.getElementById('screenshotPath').value;
             try {
                 const response = await fetch('/api/screenshot', {
                     method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({path: path})
+                    headers: {'Content-Type': 'application/json'}
                 });
                 const data = await response.json();
-                showOutput(data.message || 'Screenshot saved', !response.ok);
+                if (response.ok && data.image) {
+                    const img = document.getElementById('screenshot');
+                    img.src = 'data:image/png;base64,' + data.image;
+                    img.style.display = 'block';
+                    showOutput(data.message || 'Screenshot captured', false);
+                } else {
+                    showOutput(data.error || 'Screenshot failed', true);
+                }
             } catch (e) {
                 showOutput('Error: ' + e.message, true);
             }
@@ -335,19 +347,9 @@ func (s *Server) handleEval(w http.ResponseWriter, r *http.Request) {
 	s.jsonResponse(w, map[string]interface{}{"result": result})
 }
 
-type screenshotRequest struct {
-	Path string `json:"path"`
-}
-
 func (s *Server) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req screenshotRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		s.jsonError(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
@@ -357,12 +359,12 @@ func (s *Server) handleScreenshot(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := os.WriteFile(req.Path, buf, 0644); err != nil {
-		s.jsonError(w, fmt.Sprintf("Failed to save screenshot: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	s.jsonResponse(w, map[string]string{"message": fmt.Sprintf("Screenshot saved to %s", req.Path)})
+	// Return base64-encoded image data
+	encoded := base64.StdEncoding.EncodeToString(buf)
+	s.jsonResponse(w, map[string]string{
+		"image": encoded,
+		"message": "Screenshot captured",
+	})
 }
 
 type resizeRequest struct {
