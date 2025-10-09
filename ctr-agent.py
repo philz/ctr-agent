@@ -87,7 +87,7 @@ def get_default_config():
             },
             {
                 "name": "gotty",
-                "command": "cat > /tmp/gotty-prefs.txt << 'EOF'\n{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}\nEOF\n/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args 'preferences='$(cat /tmp/gotty-prefs.txt | base64 -w0) bash",
+                "command": "cat > /tmp/gotty-prefs.txt << 'EOF'\n{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}\nEOF\n/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args 'preferences='$(cat /tmp/gotty-prefs.txt | base64 -w0) tmux attach",
             },
             {
                 "name": "headless",
@@ -277,11 +277,19 @@ def outside_mode(args, config):
     image_tag = config.get("image", "container-agent:dev")
 
     # Build docker command
-    docker_cmd = [
-        "docker", "run", "--rm", "-it",
-        "--hostname", args.slug,
-        "--name", args.slug,
-    ]
+    # If --open is true, run detached; otherwise run interactive
+    if open_browser:
+        docker_cmd = [
+            "docker", "run", "--rm", "-d",
+            "--hostname", args.slug,
+            "--name", args.slug,
+        ]
+    else:
+        docker_cmd = [
+            "docker", "run", "--rm", "-it",
+            "--hostname", args.slug,
+            "--name", args.slug,
+        ]
 
     # Add docker options from config
     docker_options = config.get("docker_options", [])
@@ -397,7 +405,32 @@ def outside_mode(args, config):
         except Exception as e:
             print(f"Failed to open browser: {e}")
 
-    subprocess.run(docker_cmd, check=False)
+    if open_browser:
+        # Run container in detached mode
+        result = subprocess.run(docker_cmd, capture_output=True, text=True, check=False)
+        container_id = result.stdout.strip()
+
+        if result.returncode == 0:
+            print(f"\nContainer started: {args.slug}")
+            print(f"Container ID: {container_id}")
+            print(f"\nGotty URL: http://{args.slug}:8001/")
+            print(f"\nTo attach a terminal, run:")
+            print(f"  docker exec -it {args.slug} tmux attach")
+            print(f"\nWaiting for container to exit (press Ctrl+C to detach)...")
+
+            # Wait for the container to exit
+            try:
+                subprocess.run(["docker", "wait", args.slug], check=False)
+            except KeyboardInterrupt:
+                print(f"\n\nDetached from container. Container is still running.")
+                print(f"To reattach: docker exec -it {args.slug} tmux attach")
+                print(f"To stop: docker stop {args.slug}")
+        else:
+            print(f"Failed to start container: {result.stderr}")
+    else:
+        # Run container in interactive mode (original behavior)
+        subprocess.run(docker_cmd, check=False)
+
     print(f"\nExited container: {args.slug}")
 
 
