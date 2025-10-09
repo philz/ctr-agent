@@ -86,7 +86,7 @@ def get_default_config():
             },
             {
                 "name": "gotty",
-                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args \"preferences=$(printf '%s' '{\"theme\":{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}' | base64 -w0)\" tmux attach",
+                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args \"preferences=$(printf '%s' '{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}' | base64 -w0)\" tmux attach",
             },
             {
                 "name": "headless",
@@ -116,9 +116,8 @@ def inside_mode(args, config):
         check=True
     )
 
-    # Rename the unique directory to /home/agent/work
-    os.rename(unique_work_dir, "/home/agent/work")
-    Path(unique_work_dir).symlink_to("/home/agent/work")
+    # Create symlink /home/agent/work -> work-{slug}
+    Path("/home/agent/work").symlink_to(unique_work_dir)
 
     # Change to work directory and then to prefix directory
     os.chdir("/home/agent/work")
@@ -170,13 +169,16 @@ def inside_mode(args, config):
             ["tmux", "select-window", "-t", f"{session_name}:0"],
             check=True
         )
-        # Attach to session
-        cmd = ["tmux", "attach-session", "-t", session_name]
     else:
-        # No additional panes, just create new session with agent
-        cmd = ["tmux", "new-session", "-s", session_name, agent_cmd]
+        # No additional panes, just create new session with agent in detached mode
+        subprocess.run(["tmux", "new-session", "-d", "-s", session_name, agent_cmd], check=False)
 
-    subprocess.run(cmd, check=False)
+    # Keep container running - sleep until interrupted
+    print("Container running. Press Ctrl+C to exit.")
+    try:
+        subprocess.run(["sleep", "infinity"], check=False)
+    except KeyboardInterrupt:
+        pass
 
     # After exit, print slug and clean up worktree if branch hasn't moved
     print(f"\nExited container: {args.slug}")
@@ -278,7 +280,7 @@ def outside_mode(args, config):
     # If --open is true, run detached; otherwise run interactive
     if open_browser:
         docker_cmd = [
-            "docker", "run", "--rm", "-d",
+            "docker", "run", "-d",
             "--hostname", args.slug,
             "--name", args.slug,
         ]
