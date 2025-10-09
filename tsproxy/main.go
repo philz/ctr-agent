@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -60,7 +61,7 @@ func main() {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		if err := serveStatusPage(ctx, srv, *allowSelfOnly); err != nil {
+		if err := serveStatusPage(ctx, srv, *allowSelfOnly, *name); err != nil {
 			log.Printf("Error serving status page on port 80: %v", err)
 		}
 	}()
@@ -186,7 +187,7 @@ func servePort(ctx context.Context, srv *tsnet.Server, port int, allowSelfOnly b
 	return server.Serve(ln)
 }
 
-func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool) error {
+func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool, hostname string) error {
 	ln, err := srv.Listen("tcp", ":80")
 	if err != nil {
 		return fmt.Errorf("failed to listen on port 80: %v", err)
@@ -238,13 +239,15 @@ func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool)
 		}
 
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprintf(w, "<html><head><title>Listening Ports</title></head><body>")
-		fmt.Fprintf(w, "<h1>Listening Ports</h1>")
+		fmt.Fprintf(w, "<html><head><title>%s - Listening Ports</title></head><body>", hostname)
+		fmt.Fprintf(w, "<h1>%s</h1>", hostname)
+		fmt.Fprintf(w, "<h2>Listening Ports</h2>")
 		fmt.Fprintf(w, "<table border='1' cellpadding='5' cellspacing='0'>")
 		fmt.Fprintf(w, "<tr><th>Port</th><th>Process</th><th>PID</th><th>Command</th></tr>")
 		for _, p := range ports {
-			fmt.Fprintf(w, "<tr><td>%d</td><td>%s</td><td>%s</td><td>%s</td></tr>",
-				p.Port, p.Process, p.PID, p.Command)
+			portLink := fmt.Sprintf("http://%s:%d/", hostname, p.Port)
+			fmt.Fprintf(w, "<tr><td><a href='%s' target='_blank'>%d</a></td><td>%s</td><td>%s</td><td>%s</td></tr>",
+				portLink, p.Port, p.Process, p.PID, p.Command)
 		}
 		fmt.Fprintf(w, "</table></body></html>")
 	})
@@ -294,6 +297,11 @@ func getListeningPorts() ([]PortInfo, error) {
 			}
 		}
 	}
+
+	// Sort ports by port number
+	sort.Slice(ports, func(i, j int) bool {
+		return ports[i].Port < ports[j].Port
+	})
 
 	return ports, nil
 }

@@ -87,7 +87,7 @@ def get_default_config():
             },
             {
                 "name": "gotty",
-                "command": "/go/bin/gotty -w -p 8001 bash",
+                "command": "cat > /tmp/gotty-prefs.txt << 'EOF'\n{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}\nEOF\n/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args 'preferences='$(cat /tmp/gotty-prefs.txt | base64 -w0) bash",
             },
             {
                 "name": "headless",
@@ -237,6 +237,9 @@ def outside_mode(args, config):
     args.slug = generate_random_slug()
     print(f"Generated slug: {args.slug}")
 
+    # Handle --open flag to open browser to gotty
+    open_browser = getattr(args, 'open', True)  # default True
+
     # Get git information
     git_dir = subprocess.run(
         ["git", "rev-parse", "--path-format=absolute", "--git-common-dir"],
@@ -327,6 +330,23 @@ def outside_mode(args, config):
         "--agent", args.agent,
     ])
 
+    # Open browser in background if --open is True
+    browser_process = None
+    if open_browser:
+        import time
+        import threading
+        def open_browser_delayed():
+            time.sleep(3)  # Wait for container to start and gotty to be ready
+            gotty_url = f"http://{args.slug}:8001/"
+            print(f"Opening browser to: {gotty_url}")
+            try:
+                subprocess.run(["xdg-open", gotty_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            except Exception as e:
+                print(f"Failed to open browser: {e}")
+
+        browser_thread = threading.Thread(target=open_browser_delayed, daemon=True)
+        browser_thread.start()
+
     subprocess.run(docker_cmd, check=False)
     print(f"\nExited container: {args.slug}")
 
@@ -351,6 +371,8 @@ def main():
         # Outside mode parser (default, user-facing)
         parser = argparse.ArgumentParser(description="Run agent in container")
         parser.add_argument("agent", help="Agent to run")
+        parser.add_argument("--open", type=lambda x: x.lower() != 'false', default=True,
+                          help="Open browser to gotty session (default: true, disable with --open=false)")
         args = parser.parse_args()
         outside_mode(args, config)
 
