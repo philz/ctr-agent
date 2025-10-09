@@ -2,18 +2,17 @@
 
 A CLI tool for controlling a headless Chrome browser from the command line, with built-in AI agent capabilities.
 
+Uses the excellent `chromedp` library for Go to do the Chrome stuff, and loosely
+based on some experience I had building sketch.dev's browser tool.
+
+# Warning
+
+This was almost entirely vibe-coded.
+
 ## Installation
 
 ```bash
-go install github.com/philz/headless/cmd/headless@latest
-```
-
-Or build from source:
-
-```bash
-git clone https://github.com/philz/headless
-cd headless
-go build -o headless ./cmd/headless
+go install github.com/philz/ctr-agent/headless/cmd/headless@latest
 ```
 
 ## Usage
@@ -78,26 +77,6 @@ headless stop
 
 When the server is running, open `http://localhost:11111` in your browser to access a web-based control panel with forms for all available commands.
 
-### AI Agent Mode
-
-Run an AI agent that can autonomously browse and interact with web pages:
-
-```bash
-export ANTHROPIC_API_KEY=your-key-here
-headless ai "What is the title of example.com?"
-```
-
-The AI agent will use the running headless server by default. To run with an independent browser instance:
-
-```bash
-headless ai --standalone "Search for information about Go programming"
-```
-
-The agent has access to these tools:
-- **navigate**: Navigate to URLs
-- **evaluate**: Execute JavaScript and read results
-- **screenshot**: Capture page screenshots
-
 ## Examples
 
 ### Basic Browser Automation
@@ -134,33 +113,6 @@ headless stop
 ```bash
 export ANTHROPIC_API_KEY=sk-ant-...
 headless ai --standalone "Visit github.com and take a screenshot"
-```
-
-## Architecture
-
-- **cmd/headless**: Main CLI application
-- **internal/server**: HTTP server and Chrome automation via chromedp
-- **internal/browser**: Client for sending commands to the server
-- **internal/ai**: AI agent with tool-calling capabilities using Claude
-
-## Requirements
-
-- Go 1.19 or later
-- Chrome/Chromium (automatically managed by chromedp)
-- Anthropic API key (for AI features)
-
-## Development
-
-Run tests:
-
-```bash
-go test ./...
-```
-
-Build:
-
-```bash
-go build -o headless ./cmd/headless
 ```
 
 ## License
