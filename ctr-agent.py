@@ -87,7 +87,7 @@ def get_default_config():
             },
             {
                 "name": "gotty",
-                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args 'preferences='$(echo '{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}' | base64 -w0) tmux attach",
+                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args 'preferences=eyJ0aGVtZSI6eyJiYWNrZ3JvdW5kIjoiI2ZmZmZmZiIsImZvcmVncm91bmQiOiIjMDAwMDAwIiwiY3Vyc29yIjoiIzAwMDAwMCIsImN1cnNvckFjY2VudCI6IiNmZmZmZmYiLCJzZWxlY3Rpb24iOiJyZ2JhKDAsMCwwLDAuMykifX0=' tmux attach",
             },
             {
                 "name": "headless",
