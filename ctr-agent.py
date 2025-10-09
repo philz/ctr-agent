@@ -4,7 +4,6 @@ import getpass
 import json
 import os
 import random
-import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -104,9 +103,8 @@ def inside_mode(args, config):
     current_user = getpass.getuser()
     subprocess.run(["sudo", "chown", "-R", current_user, os.getcwd()], check=True)
 
-    # Create unique work directory with random suffix
-    random_suffix = secrets.token_hex(8)
-    unique_work_dir = f"/home/agent/work-{random_suffix}"
+    # Create work directory with slug
+    unique_work_dir = f"/home/agent/work-{args.slug}"
     os.mkdir(unique_work_dir)
 
     # Add worktree to the unique directory
