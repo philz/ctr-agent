@@ -216,11 +216,6 @@ def inside_mode(args, config):
             check=False
         )
         subprocess.run(
-            ["git", "worktree", "prune"],
-            cwd=args.git_dir,
-            check=False
-        )
-        subprocess.run(
             ["git", "branch", "-D", args.slug],
             cwd=args.git_dir,
             check=False
