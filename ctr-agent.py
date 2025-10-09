@@ -330,22 +330,72 @@ def outside_mode(args, config):
         "--agent", args.agent,
     ])
 
-    # Open browser in background if --open is True
-    browser_process = None
+    # Open browser if --open is True
+    redirect_server = None
     if open_browser:
-        import time
+        import socket
         import threading
-        def open_browser_delayed():
-            time.sleep(3)  # Wait for container to start and gotty to be ready
-            gotty_url = f"http://{args.slug}:8001/"
-            print(f"Opening browser to: {gotty_url}")
-            try:
-                subprocess.run(["xdg-open", gotty_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            except Exception as e:
-                print(f"Failed to open browser: {e}")
+        from http.server import HTTPServer, BaseHTTPRequestHandler
 
-        browser_thread = threading.Thread(target=open_browser_delayed, daemon=True)
-        browser_thread.start()
+        # Create a redirect handler that waits for hostname to resolve
+        class RedirectHandler(BaseHTTPRequestHandler):
+            def log_message(self, format, *args):
+                pass  # Suppress logging
+
+            def do_GET(self):
+                import socket
+                import time
+
+                target_url = f"http://{args.slug}:8001/"
+                timeout = 20
+                start_time = time.time()
+
+                # Try to resolve the hostname with timeout
+                resolved = False
+                while time.time() - start_time < timeout:
+                    try:
+                        socket.getaddrinfo(args.slug, 8001, socket.AF_UNSPEC, socket.SOCK_STREAM)
+                        resolved = True
+                        break
+                    except socket.gaierror:
+                        time.sleep(0.5)
+
+                if resolved:
+                    self.send_response(302)
+                    self.send_header('Location', target_url)
+                    self.end_headers()
+                else:
+                    self.send_response(504)
+                    self.send_header('Content-type', 'text/html')
+                    self.end_headers()
+                    self.wfile.write(f"<html><body><h1>Timeout</h1><p>Could not resolve {args.slug} after {timeout} seconds</p></body></html>".encode())
+
+        # Start server on port 0 (random available port)
+        server = HTTPServer(('localhost', 0), RedirectHandler)
+        port = server.server_port
+
+        def run_server():
+            server.handle_request()  # Handle one request then stop
+
+        server_thread = threading.Thread(target=run_server, daemon=True)
+        server_thread.start()
+
+        # Open browser to the local redirect server
+        redirect_url = f"http://localhost:{port}/"
+        print(f"Opening browser to: {redirect_url}")
+        print(f"Will redirect to: http://{args.slug}:8001/ once hostname resolves")
+
+        # Detect platform and use appropriate command
+        import platform
+        try:
+            if platform.system() == "Darwin":  # macOS
+                subprocess.run(["open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            elif platform.system() == "Windows":
+                subprocess.run(["start", redirect_url], shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            else:  # Linux and others
+                subprocess.run(["xdg-open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as e:
+            print(f"Failed to open browser: {e}")
 
     subprocess.run(docker_cmd, check=False)
     print(f"\nExited container: {args.slug}")
