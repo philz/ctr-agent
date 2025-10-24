@@ -170,13 +170,8 @@ def inside_mode(args, config):
     if not claude_json_symlink.exists():
         claude_json_symlink.symlink_to("/home/agent/.claude/claude.json")
 
-    # Get agent configuration
-    agent_config = config["agents"].get(args.agent)
-    if not agent_config:
-        raise ValueError(f"Unknown agent: {args.agent}")
-
-    # Get agent command
-    agent_cmd = agent_config["command"]
+    # Get agent command from arguments (passed from outside mode)
+    agent_cmd = args.agent_cmd
 
     # Get additional panes
     additional_panes = config.get("additional_panes", [])
@@ -370,6 +365,12 @@ def outside_mode(args, config):
     # Add working directory and image
     docker_cmd.extend(["-w", workdir, image_tag])
 
+    # Get agent command from config
+    agent_config = config["agents"].get(args.agent)
+    if not agent_config:
+        raise ValueError(f"Unknown agent: {args.agent}")
+    agent_cmd = agent_config["command"]
+
     # Add command to run inside container
     docker_cmd.extend([
         "python3", "/mnt/ctr-agent.py", "inside",
@@ -377,7 +378,7 @@ def outside_mode(args, config):
         "--git-dir", git_dir,
         "--committish", committish,
         "--prefix", prefix,
-        "--agent", args.agent,
+        "--agent-cmd", agent_cmd,
     ])
 
     # Open browser if --open is True
@@ -555,7 +556,7 @@ def main():
         parser.add_argument("--git-dir", required=True, help="Git directory path")
         parser.add_argument("--committish", required=True, help="Git commit hash")
         parser.add_argument("--prefix", required=True, help="Working directory prefix")
-        parser.add_argument("--agent", required=True, help="Agent to run")
+        parser.add_argument("--agent-cmd", required=True, help="Agent command to run")
         parser.add_argument("--slug", help="slug")
         args = parser.parse_args()
         inside_mode(args, config)
