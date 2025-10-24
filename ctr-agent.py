@@ -23,6 +23,32 @@ ANIMALS = [
 ]
 
 
+def merge_configs(base_config, overlay_config):
+    """Merge overlay config on top of base config.
+
+    For lists (mounts, additional_panes, docker_options), overlay appends to base.
+    For dicts (env_vars, agents), overlay updates/extends base.
+    For scalars (image), overlay replaces base.
+    """
+    result = base_config.copy()
+
+    for key, overlay_value in overlay_config.items():
+        if key not in result:
+            # New key in overlay, just add it
+            result[key] = overlay_value
+        elif isinstance(overlay_value, dict) and isinstance(result[key], dict):
+            # Both are dicts, merge them
+            result[key] = {**result[key], **overlay_value}
+        elif isinstance(overlay_value, list) and isinstance(result[key], list):
+            # Both are lists, append overlay to base
+            result[key] = result[key] + overlay_value
+        else:
+            # Scalar or type mismatch, overlay replaces base
+            result[key] = overlay_value
+
+    return result
+
+
 def load_config():
     """Load configuration from JSON file."""
     # Allow environment variable to override config path
@@ -49,7 +75,22 @@ def load_config():
         return config
 
     with open(config_path, "r") as f:
-        return json.load(f)
+        config = json.load(f)
+
+    # Load overlay config if it exists
+    overlay_config_path_str = os.environ.get("CTR_AGENT_OVERLAY_CONFIG")
+    if overlay_config_path_str:
+        overlay_config_path = Path(overlay_config_path_str).expanduser()
+    else:
+        overlay_config_path = Path.home() / ".config" / "ctr-agent" / "config-overlay.json"
+
+    if overlay_config_path.exists():
+        with open(overlay_config_path, "r") as f:
+            overlay_config = json.load(f)
+        config = merge_configs(config, overlay_config)
+        print(f"Applied overlay config from: {overlay_config_path}")
+
+    return config
 
 
 def get_default_config():
@@ -447,14 +488,25 @@ def outside_mode(args, config):
         print(f"Will redirect to: http://{args.slug}:8001/ once hostname resolves")
 
         # Detect platform and use appropriate command
+        # Respect CTR_AGENT_BROWSER environment variable if set
         import platform
+        browser = os.environ.get("CTR_AGENT_BROWSER")
         try:
             if platform.system() == "Darwin":  # macOS
-                subprocess.run(["open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if browser:
+                    subprocess.run(["open", "-a", browser, redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.run(["open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             elif platform.system() == "Windows":
-                subprocess.run(["start", redirect_url], shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if browser:
+                    subprocess.run([browser, redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.run(["start", redirect_url], shell=True, check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             else:  # Linux and others
-                subprocess.run(["xdg-open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                if browser:
+                    subprocess.run([browser, redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                else:
+                    subprocess.run(["xdg-open", redirect_url], check=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         except Exception as e:
             print(f"Failed to open browser: {e}")
 
