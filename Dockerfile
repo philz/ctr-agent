@@ -36,6 +36,7 @@ RUN apt-get update; \
 		make python3-pip python-is-python3 tree net-tools file build-essential \
 		pipx cargo psmisc bsdmainutils openssh-client sudo \
 		unzip util-linux xz-utils \
+		tini \
 		libglib2.0-0 libnss3 libx11-6 libxcomposite1 libxdamage1 \
 		libxext6 libxi6 libxrandr2 libgbm1 libgtk-3-0 \
 		fonts-noto-color-emoji fonts-symbola && \
@@ -134,3 +135,6 @@ RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user
 RUN curl -fsSL https://subtrace.dev/install.sh | sh
 
 WORKDIR /home/agent
+
+# Use tini as init system
+ENTRYPOINT ["/usr/bin/tini", "--"]
