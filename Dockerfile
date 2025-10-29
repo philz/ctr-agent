@@ -131,10 +131,13 @@ USER agent
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
+# Create .gotty config file for dark text on light background
+RUN echo 'preferences = {"theme":{"background":"#ffffff","foreground":"#000000","cursor":"#000000","cursorAccent":"#ffffff","selection":"rgba(0,0,0,0.3)","black":"#000000","red":"#cc0000","green":"#4e9a06","yellow":"#c4a000","blue":"#3465a4","magenta":"#75507b","cyan":"#06989a","white":"#d3d7cf","brightBlack":"#555753","brightRed":"#ef2929","brightGreen":"#8ae234","brightYellow":"#fce94f","brightBlue":"#729fcf","brightMagenta":"#ad7fa8","brightCyan":"#34e2e2","brightWhite":"#eeeeec"}}' > /home/agent/.gotty
+
 # Install subtrace
 RUN curl -fsSL https://subtrace.dev/install.sh | sh
 
 WORKDIR /home/agent
 
 # Use tini as init system
-ENTRYPOINT ["/usr/bin/tini", "--"]
+# ENTRYPOINT ["/usr/bin/tini", "--"]

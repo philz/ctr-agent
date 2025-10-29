@@ -128,7 +128,7 @@ def get_default_config():
             },
             {
                 "name": "gotty",
-                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' --ws-query-args \"preferences=$(printf '%s' '{{\"theme\":{{\"background\":\"#ffffff\",\"foreground\":\"#000000\",\"cursor\":\"#000000\",\"cursorAccent\":\"#ffffff\",\"selection\":\"rgba(0,0,0,0.3)\"}}}}' | base64 -w0)\" tmux attach",
+                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' tmux attach",
             },
             {
                 "name": "headless",
