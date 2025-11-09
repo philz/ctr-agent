@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"tailscale.com/tsnet"
 )
@@ -23,6 +25,8 @@ func main() {
 	name := flag.String("name", "", "Tailscale node name")
 	ports := flag.String("ports", "", "Comma-separated list of ports, ranges, or mixed (e.g., '8000,8001' or '8000-8005' or '8000,8010-8015')")
 	allowSelfOnly := flag.Bool("allow-self-only", true, "Only allow requests from the same Tailscale user")
+	magicDNSSuffix := flag.String("magic-dns-suffix", "", "Tailscale MagicDNS suffix for health checking (e.g., 'example.ts.net')")
+	checkInterval := flag.Duration("check-interval", 30*time.Second, "Interval for DNS health checks")
 	flag.Parse()
 
 	authKey := os.Getenv("TS_AUTHKEY")
@@ -41,42 +45,113 @@ func main() {
 		logf = log.Printf
 	}
 
-	srv := &tsnet.Server{
-		Hostname: *name,
-		AuthKey:  authKey,
-		Logf:     logf,
-	}
-
-	defer srv.Close()
-
-	var selfLoginName string
-	if *allowSelfOnly {
-		log.Printf("Self-only mode enabled - will determine identity from first request")
-	}
-
-	ctx := context.Background()
-	var wg sync.WaitGroup
-
-	// Start port 80 status server
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		if err := serveStatusPage(ctx, srv, *allowSelfOnly, *name); err != nil {
-			log.Printf("Error serving status page on port 80: %v", err)
+	for {
+		srv := &tsnet.Server{
+			Hostname: *name,
+			AuthKey:  authKey,
+			Logf:     logf,
 		}
-	}()
 
-	for _, port := range portList {
+		var selfLoginName string
+		if *allowSelfOnly {
+			log.Printf("Self-only mode enabled - will determine identity from first request")
+		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		var wg sync.WaitGroup
+
+		// Start DNS health checker if magicDNSSuffix is provided
+		if *magicDNSSuffix != "" {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				monitorDNS(ctx, *name, *magicDNSSuffix, *checkInterval, cancel)
+			}()
+		}
+
+		// Start port 80 status server
 		wg.Add(1)
-		go func(p int) {
+		go func() {
 			defer wg.Done()
-			if err := servePort(ctx, srv, p, *allowSelfOnly, selfLoginName); err != nil {
-				log.Printf("Error serving port %d: %v", p, err)
+			if err := serveStatusPage(ctx, srv, *allowSelfOnly, *name); err != nil {
+				log.Printf("Error serving status page on port 80: %v", err)
 			}
-		}(port)
+		}()
+
+		for _, port := range portList {
+			wg.Add(1)
+			go func(p int) {
+				defer wg.Done()
+				if err := servePort(ctx, srv, p, *allowSelfOnly, selfLoginName); err != nil {
+					log.Printf("Error serving port %d: %v", p, err)
+				}
+			}(port)
+		}
+
+		wg.Wait()
+
+		// Clean up server before restart
+		srv.Close()
+
+		// If context wasn't cancelled (no DNS failure), exit normally
+		select {
+		case <-ctx.Done():
+			log.Printf("Restarting tsproxy due to DNS failure...")
+			time.Sleep(5 * time.Second) // Brief delay before restart
+		default:
+			log.Printf("tsproxy shutting down normally")
+			return
+		}
+	}
+}
+
+func monitorDNS(ctx context.Context, hostname, magicDNSSuffix string, checkInterval time.Duration, cancelFunc context.CancelFunc) {
+	fullHostname := fmt.Sprintf("%s.%s", hostname, magicDNSSuffix)
+	log.Printf("Starting DNS health monitoring for %s (checking every %v)", fullHostname, checkInterval)
+
+	// Use Tailscale's DNS resolver
+	resolver := &net.Resolver{
+		PreferGo: true,
+		Dial: func(ctx context.Context, network, address string) (net.Conn, error) {
+			d := net.Dialer{
+				Timeout: 5 * time.Second,
+			}
+			return d.DialContext(ctx, network, "100.100.100.100:53")
+		},
 	}
 
-	wg.Wait()
+	consecutiveFailures := 0
+	const maxFailures = 3
+
+	ticker := time.NewTicker(checkInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			checkCtx, checkCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			addrs, err := resolver.LookupHost(checkCtx, fullHostname)
+			checkCancel()
+
+			if err != nil {
+				consecutiveFailures++
+				log.Printf("DNS check failed (%d/%d): %v", consecutiveFailures, maxFailures, err)
+
+				if consecutiveFailures >= maxFailures {
+					log.Printf("DNS has failed %d consecutive times, triggering restart", maxFailures)
+					cancelFunc()
+					return
+				}
+			} else {
+				if consecutiveFailures > 0 {
+					log.Printf("DNS check recovered: %s resolves to %v", fullHostname, addrs)
+				}
+				consecutiveFailures = 0
+			}
+		}
+	}
 }
 
 func parsePorts(portStr string) ([]int, error) {
@@ -184,7 +259,19 @@ func servePort(ctx context.Context, srv *tsnet.Server, port int, allowSelfOnly b
 		Handler: handler,
 	}
 
-	return server.Serve(ln)
+	// Shutdown server when context is cancelled
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(shutdownCtx)
+	}()
+
+	err = server.Serve(ln)
+	if err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool, hostname string) error {
@@ -258,7 +345,19 @@ func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool,
 		Handler: handler,
 	}
 
-	return server.Serve(ln)
+	// Shutdown server when context is cancelled
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		server.Shutdown(shutdownCtx)
+	}()
+
+	err = server.Serve(ln)
+	if err != nil && err != http.ErrServerClosed {
+		return err
+	}
+	return nil
 }
 
 type PortInfo struct {

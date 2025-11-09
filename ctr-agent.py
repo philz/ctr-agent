@@ -122,7 +122,7 @@ def get_default_config():
         "additional_panes": [
             {
                 "name": "tsproxy",
-                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsproxy -name {slug} -ports 8000-9999,11111; else sleep infinity; fi",
+                "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsproxy -name {slug} -ports 8000-9999,11111 -magic-dns-suffix {magic_dns_suffix}; else sleep infinity; fi",
                 # Alternative: use tsnsrv instead
                 # "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsnsrv -name {slug} -listenAddr :9000 -plaintext=true http://0.0.0.0:9000/; else sleep infinity; fi",
             },
@@ -144,6 +144,9 @@ def inside_mode(args, config):
     # Fix ownership
     current_user = getpass.getuser()
     subprocess.run(["sudo", "chown", "-R", current_user, os.getcwd()], check=True)
+
+    # Get MagicDNSSuffix for tsproxy health checking
+    magic_dns_suffix = args.magic_dns_suffix if hasattr(args, 'magic_dns_suffix') else None
 
     # Create work directory with slug
     unique_work_dir = f"/home/agent/work-{args.slug}"
@@ -189,7 +192,10 @@ def inside_mode(args, config):
         # Create additional panes
         for pane in additional_panes:
             pane_name = pane.get("name", "pane")
-            pane_cmd = pane["command"].format(slug=args.slug)
+            pane_cmd = pane["command"].format(
+                slug=args.slug,
+                magic_dns_suffix=magic_dns_suffix or ""
+            )
             subprocess.run(
                 ["tmux", "new-window", "-t", session_name, "-n", pane_name, pane_cmd],
                 check=True
@@ -273,6 +279,36 @@ def outside_mode(args, config):
     # Generate slug
     args.slug = generate_random_slug()
     print(f"Generated slug: {args.slug}")
+
+    # Get MagicDNSSuffix from Tailscale
+    magic_dns_suffix = None
+    try:
+        import platform
+        import json as json_module
+
+        # Try to find tailscale binary
+        tailscale_paths = ["tailscale"]
+        if platform.system() == "Darwin":
+            tailscale_paths.append("/Applications/Tailscale.app/Contents/MacOS/Tailscale")
+
+        for ts_path in tailscale_paths:
+            try:
+                result = subprocess.run(
+                    [ts_path, "status", "-json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=5
+                )
+                if result.returncode == 0:
+                    ts_status = json_module.loads(result.stdout)
+                    magic_dns_suffix = ts_status.get("MagicDNSSuffix", "").rstrip(".")
+                    if magic_dns_suffix:
+                        print(f"Detected Tailscale MagicDNSSuffix: {magic_dns_suffix}")
+                        break
+            except (FileNotFoundError, subprocess.TimeoutExpired, json_module.JSONDecodeError):
+                continue
+    except Exception as e:
+        print(f"Warning: Could not detect MagicDNSSuffix: {e}")
 
     # Handle --open flag to open browser to gotty
     open_browser = getattr(args, 'open', True)  # default True
@@ -380,6 +416,10 @@ def outside_mode(args, config):
         "--prefix", prefix,
         "--agent-cmd", agent_cmd,
     ])
+
+    # Add magic DNS suffix if available
+    if magic_dns_suffix:
+        docker_cmd.extend(["--magic-dns-suffix", magic_dns_suffix])
 
     # Open browser if --open is True
     redirect_server = None
@@ -558,6 +598,7 @@ def main():
         parser.add_argument("--prefix", required=True, help="Working directory prefix")
         parser.add_argument("--agent-cmd", required=True, help="Agent command to run")
         parser.add_argument("--slug", help="slug")
+        parser.add_argument("--magic-dns-suffix", help="Tailscale MagicDNS suffix")
         args = parser.parse_args()
         inside_mode(args, config)
     else:
