@@ -439,7 +439,6 @@ def outside_mode(args, config):
                 import json
                 import platform
 
-                target_url = f"http://{args.slug}:8001/"
                 timeout = 20
                 start_time = time.time()
 
@@ -483,11 +482,18 @@ def outside_mode(args, config):
                     self.wfile.write(f"<html><body><h1>Error</h1><p>{error_msg}</p></body></html>".encode())
                     return
 
-                # Try to resolve the full hostname with dig
+                # Build full hostname and target URL
                 full_hostname = f"{args.slug}.{magic_dns_suffix}"
+                target_url = f"http://{full_hostname}:8001/"
+                print(f"Waiting for {full_hostname} to resolve...")
                 resolved = False
+                attempt = 0
                 while time.time() - start_time < timeout:
+                    attempt += 1
                     try:
+                        # Log every 10 attempts (5 seconds)
+                        if attempt % 10 == 1:
+                            print(f"DNS query attempt {attempt} for {full_hostname}")
                         # Use dig to query the full hostname against Tailscale DNS
                         result = subprocess.run(
                             ["dig", "+noall", "+answer", full_hostname, "@100.100.100.100"],
@@ -497,6 +503,7 @@ def outside_mode(args, config):
                         )
                         # Check if we got a valid answer (non-empty output)
                         if result.returncode == 0 and result.stdout.strip():
+                            print(f"DNS resolution succeeded for {full_hostname} after {attempt} attempts")
                             resolved = True
                             break
                     except (subprocess.TimeoutExpired, FileNotFoundError):
@@ -511,7 +518,7 @@ def outside_mode(args, config):
                     self.send_response(504)
                     self.send_header('Content-type', 'text/html')
                     self.end_headers()
-                    self.wfile.write(f"<html><body><h1>Timeout</h1><p>Could not resolve {args.slug} after {timeout} seconds</p></body></html>".encode())
+                    self.wfile.write(f"<html><body><h1>Timeout</h1><p>Could not resolve {full_hostname} after {timeout} seconds</p></body></html>".encode())
 
         # Start server on port 0 (random available port)
         server = HTTPServer(('localhost', 0), RedirectHandler)

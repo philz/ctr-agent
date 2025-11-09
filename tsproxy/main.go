@@ -73,7 +73,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			if err := serveStatusPage(ctx, srv, *allowSelfOnly, *name); err != nil {
+			if err := serveStatusPage(ctx, srv, *allowSelfOnly, *name, *magicDNSSuffix); err != nil {
 				log.Printf("Error serving status page on port 80: %v", err)
 			}
 		}()
@@ -122,6 +122,7 @@ func monitorDNS(ctx context.Context, hostname, magicDNSSuffix string, checkInter
 
 	consecutiveFailures := 0
 	const maxFailures = 3
+	successfulChecks := 0
 
 	ticker := time.NewTicker(checkInterval)
 	defer ticker.Stop()
@@ -149,6 +150,12 @@ func monitorDNS(ctx context.Context, hostname, magicDNSSuffix string, checkInter
 					log.Printf("DNS check recovered: %s resolves to %v", fullHostname, addrs)
 				}
 				consecutiveFailures = 0
+				successfulChecks++
+
+				// Log every 10 successful checks to show DNS monitoring is working
+				if successfulChecks%10 == 0 {
+					log.Printf("DNS health check: %s resolves to %v (%d checks)", fullHostname, addrs, successfulChecks)
+				}
 			}
 		}
 	}
@@ -274,7 +281,7 @@ func servePort(ctx context.Context, srv *tsnet.Server, port int, allowSelfOnly b
 	return nil
 }
 
-func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool, hostname string) error {
+func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool, hostname string, magicDNSSuffix string) error {
 	ln, err := srv.Listen("tcp", ":80")
 	if err != nil {
 		return fmt.Errorf("failed to listen on port 80: %v", err)
@@ -332,7 +339,12 @@ func serveStatusPage(ctx context.Context, srv *tsnet.Server, allowSelfOnly bool,
 		fmt.Fprintf(w, "<table border='1' cellpadding='5' cellspacing='0'>")
 		fmt.Fprintf(w, "<tr><th>Port</th><th>Process</th><th>PID</th><th>Command</th></tr>")
 		for _, p := range ports {
-			portLink := fmt.Sprintf("http://%s:%d/", hostname, p.Port)
+			// Build full hostname for links
+			fullHostname := hostname
+			if magicDNSSuffix != "" {
+				fullHostname = fmt.Sprintf("%s.%s", hostname, magicDNSSuffix)
+			}
+			portLink := fmt.Sprintf("http://%s:%d/", fullHostname, p.Port)
 			fmt.Fprintf(w, "<tr><td><a href='%s' target='_blank'>%d</a></td><td>%s</td><td>%s</td><td>%s</td></tr>",
 				portLink, p.Port, p.Process, p.PID, p.Command)
 		}
