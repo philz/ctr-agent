@@ -61,9 +61,9 @@ ENV NPM_CONFIG_PREFIX="/opt/node22"
 ENV NPM_CONFIG_UPDATE_NOTIFIER="false"
 
 # Install CLI tools globally using nodeenv's npm and verify
-RUN npm i -g @anthropic-ai/claude-code @openai/codex happy-coder && \
+RUN npm i -g @anthropic-ai/claude-code @openai/codex happy-coder @google/gemini-cli && \
     npm cache clean --force || true && \
-    command -v claude && command -v codex && command -v happy
+    command -v claude && command -v codex && command -v happy && command -v gemini
 
 # Install Playwright MCP server
 RUN npm i -g playwright @playwright/mcp && \
@@ -103,6 +103,7 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 	go install mvdan.cc/gofumpt@latest; \
 	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
 	go install github.com/sorenisanerd/gotty@latest; \
+	go install github.com/philz/differing@latest; \
 	go clean -cache -testcache -modcache
 
 # Build tsproxy

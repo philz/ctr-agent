@@ -62,6 +62,7 @@ def load_config():
     ctr_agent_dir = Path.home() / ".config" / "ctr-agent"
     (ctr_agent_dir / "codex").mkdir(parents=True, exist_ok=True)
     (ctr_agent_dir / "claude").mkdir(parents=True, exist_ok=True)
+    (ctr_agent_dir / "gemini").mkdir(parents=True, exist_ok=True)
 
     if not config_path.exists():
         config = get_default_config()
@@ -101,12 +102,14 @@ def get_default_config():
         "env_vars": {
             "OPENAI_API_KEY": None,
             "ANTHROPIC_API_KEY": None,
+            "GEMINI_API_KEY": None,
             "TS_AUTHKEY": None,
         },
         "mounts": [
             {"host": "/var/run/docker.sock", "container": "/var/run/docker.sock"},
             {"host": "{HOME}/.config/ctr-agent/codex", "container": "/home/agent/.codex"},
             {"host": "{HOME}/.config/ctr-agent/claude", "container": "/home/agent/.claude"},
+            {"host": "{HOME}/.config/ctr-agent/gemini", "container": "/home/agent/.gemini"},
         ],
         "agents": {
             "codex": {
@@ -114,6 +117,9 @@ def get_default_config():
             },
             "claude": {
                 "command": "claude --dangerously-skip-permissions",
+            },
+            "gemini": {
+                "command": "gemini",
             },
             "bash": {
                 "command": "bash",
@@ -133,6 +139,10 @@ def get_default_config():
             {
                 "name": "headless",
                 "command": "/go/bin/headless start --foreground",
+            },
+            {
+                "name": "differing",
+                "command": "/go/bin/differing -port 8002 -addr 0.0.0.0",
             },
         ],
     }
