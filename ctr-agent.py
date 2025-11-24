@@ -13,13 +13,49 @@ from pathlib import Path
 ADJECTIVES = [
     "happy", "clever", "brave", "calm", "eager", "gentle", "jolly", "kind",
     "lively", "proud", "swift", "wise", "bright", "cool", "fair", "keen",
-    "noble", "quick", "sharp", "warm", "bold", "daring", "fuzzy", "silly"
+    "noble", "quick", "sharp", "warm", "bold", "daring", "fuzzy", "silly",
+    "agile", "amber", "ancient", "arctic", "azure", "bouncy", "bronze", "charming",
+    "cosmic", "crimson", "crystal", "dapper", "dawn", "dreamy", "dynamic", "elegant",
+    "emerald", "epic", "fancy", "fiery", "fleet", "flying", "frosty", "gentle",
+    "gifted", "gleaming", "golden", "graceful", "grand", "groovy", "hardy", "hasty",
+    "heroic", "humble", "ivory", "jade", "jazzy", "joyful", "laser", "leafy",
+    "lucky", "lunar", "magic", "majestic", "mellow", "merry", "mighty", "misty",
+    "modern", "mystic", "nifty", "nimble", "novel", "orange", "peaceful", "perky",
+    "plucky", "polite", "prism", "proper", "quiet", "radiant", "rapid", "robust",
+    "royal", "rustic", "scarlet", "serene", "shadow", "shiny", "silent", "silver",
+    "sleek", "smooth", "snappy", "solar", "sonic", "sparkling", "speedy", "spry",
+    "steady", "stellar", "stormy", "strong", "sunny", "super", "tidy", "tiny",
+    "tranquil", "tribal", "tropical", "trusty", "twilight", "ultra", "unique", "upbeat",
+    "urban", "valiant", "velvet", "vibrant", "violet", "vivid", "wandering", "whimsical",
+    "wild", "witty", "zen", "zesty", "zippy"
 ]
 
 ANIMALS = [
     "ant", "bear", "cat", "dog", "eagle", "fox", "goat", "hawk", "ibex",
     "jay", "koala", "lion", "mouse", "newt", "owl", "panda", "quail", "rabbit",
-    "seal", "tiger", "urchin", "viper", "wolf", "yak", "zebra", "otter", "penguin"
+    "seal", "tiger", "urchin", "viper", "wolf", "yak", "zebra", "otter", "penguin",
+    "albatross", "alligator", "alpaca", "anaconda", "angelfish", "armadillo", "baboon", "badger",
+    "barracuda", "bat", "beaver", "bee", "beetle", "bison", "boar", "buffalo",
+    "butterfly", "camel", "cardinal", "caribou", "cheetah", "chinchilla", "chipmunk", "cobra",
+    "cockatoo", "condor", "cougar", "coyote", "crab", "crane", "cricket", "crocodile",
+    "crow", "deer", "dingo", "dolphin", "donkey", "dove", "dragonfly", "duck",
+    "elephant", "elk", "emu", "falcon", "ferret", "finch", "flamingo", "fly",
+    "gazelle", "gecko", "giraffe", "gnu", "goose", "gopher", "gorilla", "grasshopper",
+    "grizzly", "hamster", "hare", "hedgehog", "heron", "hippo", "hornet", "horse",
+    "hummingbird", "husky", "iguana", "impala", "jackal", "jaguar", "jellyfish", "kangaroo",
+    "kestrel", "kingfisher", "kite", "kiwi", "lemming", "lemur", "leopard", "llama",
+    "lobster", "locust", "lynx", "macaw", "magpie", "mallard", "manatee", "mandrill",
+    "mantis", "marmot", "meerkat", "mink", "mole", "mongoose", "moose", "mosquito",
+    "moth", "narwhal", "nautilus", "nightingale", "octopus", "opossum", "orangutan", "orca",
+    "osprey", "ostrich", "otter", "oxen", "oyster", "panther", "parrot", "peacock",
+    "pelican", "pheasant", "pigeon", "pike", "platypus", "porcupine", "porpoise", "prairie",
+    "puffin", "puma", "python", "raccoon", "raven", "reindeer", "rhino", "roadrunner",
+    "robin", "salamander", "salmon", "sardine", "scorpion", "seahorse", "shark", "sheep",
+    "shrimp", "skunk", "sloth", "snail", "snake", "sparrow", "spider", "squid",
+    "squirrel", "starfish", "stingray", "stork", "swallow", "swan", "swordfish", "tapir",
+    "termite", "tern", "toad", "tortoise", "toucan", "trout", "tuna", "turkey",
+    "turtle", "vulture", "walrus", "wasp", "weasel", "whale", "wildcat", "woodpecker",
+    "wombat", "wren", "xerus", "yeti"
 ]
 
 
@@ -278,10 +314,27 @@ def inside_mode(args, config):
 
 
 def generate_random_slug():
-    """Generate a random two-word hyphenated slug."""
-    adjective = random.choice(ADJECTIVES)
-    animal = random.choice(ANIMALS)
-    return f"{adjective}-{animal}"
+    """Generate a random two-word hyphenated slug that doesn't conflict with existing docker containers."""
+    max_attempts = 100
+    for _ in range(max_attempts):
+        adjective = random.choice(ADJECTIVES)
+        animal = random.choice(ANIMALS)
+        slug = f"{adjective}-{animal}"
+
+        # Check if a container with this name already exists
+        result = subprocess.run(
+            ["docker", "ps", "-a", "--filter", f"name={slug}", "--format", "{{.Names}}"],
+            capture_output=True,
+            text=True,
+            check=False
+        )
+
+        # If no container found, this slug is available
+        if result.returncode == 0 and slug not in result.stdout.strip().split('\n'):
+            return slug
+
+    # If we couldn't find a unique name after max_attempts, raise an error
+    raise RuntimeError(f"Could not generate unique container name after {max_attempts} attempts")
 
 
 def outside_mode(args, config):
