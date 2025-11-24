@@ -132,32 +132,8 @@ USER agent
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
-# Create .gotty config file for dark text on light background
-RUN cat > /home/agent/.gotty <<'EOF'
-preferences {
-    background_color = "rgb(255, 255, 255)"
-    foreground_color = "rgb(0, 0, 0)"
-    cursor_color = "rgba(0, 0, 0, 0.5)"
-    color_palette_overrides = [
-        "rgb(0, 0, 0)",
-        "rgb(204, 0, 0)",
-        "rgb(78, 154, 6)",
-        "rgb(196, 160, 0)",
-        "rgb(52, 101, 164)",
-        "rgb(117, 80, 123)",
-        "rgb(6, 152, 154)",
-        "rgb(211, 215, 207)",
-        "rgb(85, 87, 83)",
-        "rgb(239, 41, 41)",
-        "rgb(138, 226, 52)",
-        "rgb(252, 233, 79)",
-        "rgb(114, 159, 207)",
-        "rgb(173, 127, 168)",
-        "rgb(52, 226, 226)",
-        "rgb(238, 238, 236)"
-    ]
-}
-EOF
+# Copy .gotty config file for dark text on light background
+COPY .gotty /home/agent/.gotty
 
 # Install subtrace
 RUN curl -fsSL https://subtrace.dev/install.sh | sh
