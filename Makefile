@@ -9,11 +9,9 @@ IMAGE_TAG := container-agent:dev
 
 build:
 	@echo "Building Docker image with git user: $(GIT_USER_NAME) <$(GIT_USER_EMAIL)>"
-	docker build --progress=plain \
+	DOCKER_BUILDKIT=1 docker build --progress=plain \
 		--build-arg GIT_USER_NAME="$(GIT_USER_NAME)" \
 		--build-arg GIT_USER_EMAIL="$(GIT_USER_EMAIL)" \
-		--mount=type=cache,target=/root/.cache/go-build \
-		--mount=type=cache,target=/go/pkg/mod \
 		-t $(IMAGE_TAG) .
 
 clean:

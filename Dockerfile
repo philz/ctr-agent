@@ -98,15 +98,18 @@ RUN mkdir -p "$GOPATH/src" "$GOPATH/bin" && chmod -R 755 "$GOPATH"
 # the specific versions are rarely what a user wants so there is no
 # point polluting the base image module with them.
 
-RUN go install golang.org/x/tools/cmd/goimports@latest; \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+	--mount=type=cache,target=/go/pkg/mod \
+	go install golang.org/x/tools/cmd/goimports@latest; \
 	go install golang.org/x/tools/gopls@latest; \
 	go install mvdan.cc/gofumpt@latest; \
 	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
-	go install github.com/sorenisanerd/gotty@latest; \
-	go clean -cache -testcache -modcache
+	go install github.com/sorenisanerd/gotty@latest
 
 # Build differing from source
-RUN git clone https://github.com/philz/differing.git /tmp/differing && \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+	--mount=type=cache,target=/go/pkg/mod \
+	git clone https://github.com/philz/differing.git /tmp/differing && \
 	cd /tmp/differing && \
 	make && \
 	cp differing $GOPATH/bin/ && \
@@ -114,15 +117,18 @@ RUN git clone https://github.com/philz/differing.git /tmp/differing && \
 
 # Build tsproxy
 COPY tsproxy /tmp/tsproxy
-RUN cd /tmp/tsproxy && \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+	--mount=type=cache,target=/go/pkg/mod \
+	cd /tmp/tsproxy && \
 	go build -o $GOPATH/bin/tsproxy . && \
 	rm -rf /tmp/tsproxy
 
 # Build headless
 COPY headless /tmp/headless
-RUN cd /tmp/headless && \
+RUN --mount=type=cache,target=/root/.cache/go-build \
+	--mount=type=cache,target=/go/pkg/mod \
+	cd /tmp/headless && \
 	go build -o $GOPATH/bin/headless ./cmd/headless && \
-	go clean -cache -testcache -modcache && \
 	rm -rf /tmp/headless
 
 # Copy the self-contained Chrome bundle from chromedp/headless-shell
