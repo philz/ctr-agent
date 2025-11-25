@@ -102,17 +102,9 @@ def load_config():
 
     if not config_path.exists():
         config = get_default_config()
-        # Write out default config
-        config_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump(config, f, indent=2)
-
-        print(f"Created default config at: {config_path}")
-        print(f"Edit this file to customize your configuration")
-        return config
-
-    with open(config_path, "r") as f:
-        config = json.load(f)
+    else:
+        with open(config_path, "r") as f:
+            config = json.load(f)
 
     # Load overlay config if it exists
     overlay_config_path_str = os.environ.get("CTR_AGENT_OVERLAY_CONFIG")
@@ -155,7 +147,7 @@ def get_default_config():
                 "command": "claude --dangerously-skip-permissions",
             },
             "gemini": {
-                "command": "gemini",
+                "command": "gemini -y",
             },
             "bash": {
                 "command": "bash",
