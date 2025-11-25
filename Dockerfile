@@ -103,8 +103,14 @@ RUN go install golang.org/x/tools/cmd/goimports@latest; \
 	go install mvdan.cc/gofumpt@latest; \
 	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
 	go install github.com/sorenisanerd/gotty@latest; \
-	go install github.com/philz/differing@latest; \
 	go clean -cache -testcache -modcache
+
+# Build differing from source
+RUN git clone https://github.com/philz/differing.git /tmp/differing && \
+	cd /tmp/differing && \
+	make && \
+	cp differing $GOPATH/bin/ && \
+	rm -rf /tmp/differing
 
 # Build tsproxy
 COPY tsproxy /tmp/tsproxy
