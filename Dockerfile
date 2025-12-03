@@ -102,8 +102,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 	--mount=type=cache,target=/go/pkg/mod \
 	go install golang.org/x/tools/cmd/goimports@latest; \
 	go install golang.org/x/tools/gopls@latest; \
-	go install mvdan.cc/gofumpt@latest; \
-	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest
+	go install mvdan.cc/gofumpt@latest
 
 # Build differing from source
 RUN --mount=type=cache,target=/root/.cache/go-build \
