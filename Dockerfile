@@ -103,14 +103,13 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 	go install golang.org/x/tools/cmd/goimports@latest; \
 	go install golang.org/x/tools/gopls@latest; \
 	go install mvdan.cc/gofumpt@latest; \
-	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest; \
-	go install github.com/sorenisanerd/gotty@latest
+	go install github.com/boinkor-net/tsnsrv/cmd/tsnsrv@latest
 
 # Build differing from source
 RUN --mount=type=cache,target=/root/.cache/go-build \
 	--mount=type=cache,target=/go/pkg/mod \
 	git clone https://github.com/philz/differing.git /tmp/differing && \
-	cd /tmp/differing && \
+	true && cd /tmp/differing && \
 	make && \
 	cp differing $GOPATH/bin/ && \
 	rm -rf /tmp/differing
@@ -131,6 +130,14 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 	go build -o $GOPATH/bin/headless ./cmd/headless && \
 	rm -rf /tmp/headless
 
+# Build yatty
+COPY yatty /tmp/yatty
+RUN --mount=type=cache,target=/root/.cache/go-build \
+	--mount=type=cache,target=/go/pkg/mod \
+	cd /tmp/yatty && \
+	go build -o $GOPATH/bin/yatty . && \
+	rm -rf /tmp/yatty
+
 # Copy the self-contained Chrome bundle from chromedp/headless-shell
 COPY --from=chrome /headless-shell /headless-shell
 ENV PATH="/headless-shell:${PATH}"
@@ -144,8 +151,6 @@ USER agent
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
-# Copy .gotty config file for dark text on light background
-COPY .gotty /home/agent/.gotty
 
 # Install subtrace
 RUN curl -fsSL https://subtrace.dev/install.sh | sh

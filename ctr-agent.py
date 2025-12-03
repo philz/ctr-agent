@@ -161,8 +161,8 @@ def get_default_config():
                 # "command": "if [ -n \"$TS_AUTHKEY\" ]; then /go/bin/tsnsrv -name {slug} -listenAddr :9000 -plaintext=true http://0.0.0.0:9000/; else sleep infinity; fi",
             },
             {
-                "name": "gotty",
-                "command": "/go/bin/gotty -w -p 8001 --title-format 'Terminal - {slug}' tmux attach",
+                "name": "yatty",
+                "command": "/go/bin/yatty --port 8001 tmux attach",
             },
             {
                 "name": "headless",
@@ -365,7 +365,7 @@ def outside_mode(args, config):
     except Exception as e:
         print(f"Warning: Could not detect MagicDNSSuffix: {e}")
 
-    # Handle --open flag to open browser to gotty
+    # Handle --open flag to open browser to yatty
     open_browser = getattr(args, 'open', True)  # default True
 
     # Get git information
@@ -621,7 +621,7 @@ def outside_mode(args, config):
         if result.returncode == 0:
             print(f"\nContainer started: {args.slug}")
             print(f"Container ID: {container_id}")
-            print(f"\nGotty URL: http://{args.slug}:8001/")
+            print(f"\nYatty URL: http://{args.slug}:8001/")
             print(f"\nTo attach a terminal, run:")
             print(f"  docker exec -it {args.slug} tmux attach")
             print(f"\nWaiting for container to exit (press Ctrl+C to stop container)...")
@@ -668,7 +668,7 @@ def main():
         parser = argparse.ArgumentParser(description="Run agent in container")
         parser.add_argument("agent", help="Agent to run")
         parser.add_argument("--open", type=lambda x: x.lower() != 'false', default=True,
-                          help="Open browser to gotty session (default: true, disable with --open=false)")
+                          help="Open browser to yatty session (default: true, disable with --open=false)")
         args = parser.parse_args()
         outside_mode(args, config)
 
