@@ -76,7 +76,7 @@ RUN playwright install chromium --with-deps --only-shell
 RUN echo '{"storage-driver":"vfs", "bridge":"none", "iptables":false, "ip-forward": false}' \
 	> /etc/docker/daemon.json
 
-ENV GO_VERSION=1.25.1
+ENV GO_VERSION=1.25.5
 ENV GOROOT=/usr/local/go
 ENV GOPATH=/go
 ENV PATH=$GOROOT/bin:$GOPATH/bin:$PATH

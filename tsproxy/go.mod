@@ -1,6 +1,6 @@
 module tsproxy
 
-go 1.21
+go 1.25
 
 require tailscale.com v1.58.2
 
