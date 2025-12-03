@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>yatty</title>
+    <link rel="stylesheet" href="/static/xterm.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #ffffff;
+        }
+        #terminal {
+            width: 100%;
+            height: 100%;
+        }
+        /* Override xterm.js styles for light theme */
+        .xterm {
+            padding: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="terminal"></div>
+    <script src="/static/xterm.min.js"></script>
+    <script src="/static/addon-fit.min.js"></script>
+    <script>
+        // Message types matching Go constants
+        const MSG_INPUT = 0x30;  // '0'
+        const MSG_OUTPUT = 0x31; // '1'
+        const MSG_RESIZE = 0x32; // '2'
+
+        // Light theme colors
+        const lightTheme = {
+            background: '#ffffff',
+            foreground: '#000000',
+            cursor: 'rgba(0, 0, 0, 0.5)',
+            cursorAccent: '#ffffff',
+            selectionBackground: 'rgba(0, 0, 0, 0.3)',
+            black: '#000000',
+            red: '#cd0000',
+            green: '#00cd00',
+            yellow: '#cdcd00',
+            blue: '#0000ee',
+            magenta: '#cd00cd',
+            cyan: '#00cdcd',
+            white: '#e5e5e5',
+            brightBlack: '#7f7f7f',
+            brightRed: '#ff0000',
+            brightGreen: '#00ff00',
+            brightYellow: '#ffff00',
+            brightBlue: '#5c5cff',
+            brightMagenta: '#ff00ff',
+            brightCyan: '#00ffff',
+            brightWhite: '#ffffff'
+        };
+
+        // Initialize terminal
+        const term = new Terminal({
+            theme: lightTheme,
+            fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+            fontSize: 14,
+            cursorBlink: true,
+            cursorStyle: 'block',
+            allowTransparency: false,
+            scrollback: 10000
+        });
+
+        const fitAddon = new FitAddon.FitAddon();
+        term.loadAddon(fitAddon);
+        term.open(document.getElementById('terminal'));
+        fitAddon.fit();
+
+        // Connect to WebSocket
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const ws = new WebSocket(protocol + '//' + window.location.host + '/ws');
+        ws.binaryType = 'arraybuffer';
+
+        ws.onopen = function() {
+            console.log('WebSocket connected');
+            sendResize();
+        };
+
+        ws.onmessage = function(event) {
+            const data = new Uint8Array(event.data);
+            if (data.length > 0 && data[0] === MSG_OUTPUT) {
+                // Decode and write output to terminal
+                const output = new TextDecoder().decode(data.slice(1));
+                term.write(output);
+            }
+        };
+
+        ws.onclose = function() {
+            console.log('WebSocket closed');
+            term.write('\r\n\x1b[31m[Connection closed]\x1b[0m\r\n');
+        };
+
+        ws.onerror = function(error) {
+            console.error('WebSocket error:', error);
+            term.write('\r\n\x1b[31m[WebSocket error]\x1b[0m\r\n');
+        };
+
+        // Send input to server
+        term.onData(function(data) {
+            if (ws.readyState === WebSocket.OPEN) {
+                const encoder = new TextEncoder();
+                const payload = encoder.encode(data);
+                const msg = new Uint8Array(1 + payload.length);
+                msg[0] = MSG_INPUT;
+                msg.set(payload, 1);
+                ws.send(msg);
+            }
+        });
+
+        // Send resize event
+        function sendResize() {
+            if (ws.readyState === WebSocket.OPEN) {
+                const dims = { cols: term.cols, rows: term.rows };
+                const payload = new TextEncoder().encode(JSON.stringify(dims));
+                const msg = new Uint8Array(1 + payload.length);
+                msg[0] = MSG_RESIZE;
+                msg.set(payload, 1);
+                ws.send(msg);
+            }
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', function() {
+            fitAddon.fit();
+            sendResize();
+        });
+
+        // Focus terminal on load
+        term.focus();
+    </script>
+</body>
+</html>
