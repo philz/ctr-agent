@@ -331,9 +331,25 @@ def generate_random_slug():
 
 def outside_mode(args, config):
     """Run outside the container - setup and launch docker."""
-    # Generate slug
-    args.slug = generate_random_slug()
-    print(f"Generated slug: {args.slug}")
+    # Check that Docker is running early
+    docker_check = subprocess.run(
+        ["docker", "ps"],
+        capture_output=True,
+        text=True,
+        check=False
+    )
+    if docker_check.returncode != 0:
+        print(f"Error: Docker is not running or not accessible.", file=sys.stderr)
+        print(f"Please start Docker and try again.", file=sys.stderr)
+        sys.exit(1)
+
+    # Use provided name or generate random slug
+    if args.container_name:
+        args.slug = args.container_name
+        print(f"Using container name: {args.slug}")
+    else:
+        args.slug = generate_random_slug()
+        print(f"Generated slug: {args.slug}")
 
     # Get MagicDNSSuffix from Tailscale
     magic_dns_suffix = None
@@ -667,9 +683,13 @@ def main():
         # Outside mode parser (default, user-facing)
         parser = argparse.ArgumentParser(description="Run agent in container")
         parser.add_argument("agent", help="Agent to run")
+        parser.add_argument("name", nargs="?", default=None, help="Container name (optional, random if not specified)")
+        parser.add_argument("--name", dest="name_flag", default=None, help="Container name (alternative to positional)")
         parser.add_argument("--open", type=lambda x: x.lower() != 'false', default=True,
                           help="Open browser to yatty session (default: true, disable with --open=false)")
         args = parser.parse_args()
+        # Use --name flag if provided, otherwise use positional argument
+        args.container_name = args.name_flag if args.name_flag else args.name
         outside_mode(args, config)
 
 
