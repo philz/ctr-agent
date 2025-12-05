@@ -61,9 +61,9 @@ ENV NPM_CONFIG_PREFIX="/opt/node22"
 ENV NPM_CONFIG_UPDATE_NOTIFIER="false"
 
 # Install CLI tools globally using nodeenv's npm and verify
-RUN npm i -g @anthropic-ai/claude-code @openai/codex happy-coder @google/gemini-cli && \
+RUN npm i -g @openai/codex happy-coder @google/gemini-cli && \
     npm cache clean --force || true && \
-    command -v claude && command -v codex && command -v happy && command -v gemini
+    command -v codex && command -v happy && command -v gemini
 
 # Install Playwright MCP server
 RUN npm i -g playwright @playwright/mcp && \
@@ -150,6 +150,9 @@ USER agent
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
+# Install Claude Code native binary (as agent user so it goes to ~/.claude/bin)
+RUN curl -fsSL https://claude.ai/install.sh | bash
+ENV PATH="/home/agent/.claude/bin:${PATH}"
 
 # Install subtrace
 RUN curl -fsSL https://subtrace.dev/install.sh | sh
