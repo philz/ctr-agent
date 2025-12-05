@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"embed"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"html/template"
 	"io"
 	"log"
 	"net/http"
@@ -22,7 +24,9 @@ import (
 var staticFiles embed.FS
 
 //go:embed index.html
-var indexHTML []byte
+var indexHTML string
+
+var indexTemplate *template.Template
 
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
@@ -53,6 +57,13 @@ func main() {
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Usage: yatty [--port PORT] COMMAND [ARGS...]")
 		os.Exit(1)
+	}
+
+	// Parse the index template
+	var err error
+	indexTemplate, err = template.New("index").Parse(indexHTML)
+	if err != nil {
+		log.Fatalf("Failed to parse index template: %v", err)
 	}
 
 	command := args[0]
@@ -87,8 +98,26 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "unknown"
+	}
+
+	data := struct {
+		Hostname string
+	}{
+		Hostname: hostname,
+	}
+
+	var buf bytes.Buffer
+	if err := indexTemplate.Execute(&buf, data); err != nil {
+		http.Error(w, "Template error", http.StatusInternalServerError)
+		return
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write(indexHTML)
+	w.Write(buf.Bytes())
 }
 
 func handleStatic(w http.ResponseWriter, r *http.Request) {
