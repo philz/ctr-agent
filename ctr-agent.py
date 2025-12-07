@@ -209,7 +209,7 @@ def inside_mode(args, config):
     # Create symlink for .claude.json to work around directory-only mount limitation
     claude_json_symlink = Path("/home/agent/.claude.json")
     if not claude_json_symlink.exists():
-        claude_json_symlink.symlink_to("/home/agent/.claude/claude.json")
+        claude_json_symlink.symlink_to("/home/agent/.claude/.claude.json")
 
     # Get agent command from arguments (passed from outside mode)
     agent_cmd = args.agent_cmd
@@ -220,12 +220,14 @@ def inside_mode(args, config):
     # Create tmux session with additional panes if configured
     session_name = "s"
 
-    # TODO: Set tmux status bar to yellow?
-    #subprocess.run(["tmux", "set-option", "-g", "status-style", "bg=yellow,fg=black"], check=False)
-
     if additional_panes:
         # Create detached tmux session
         subprocess.run(["tmux", "new-session", "-d", "-s", session_name], check=True)
+
+        # Configure tmux status bar to not show date/time (causes false positives in change detection)
+        # Show only hostname/slug on the right side
+        subprocess.run(["tmux", "set-option", "-g", "status-right", f" {args.slug} "], check=False)
+        subprocess.run(["tmux", "set-option", "-g", "status-right-length", "50"], check=False)
 
         # Create additional panes
         for pane in additional_panes:
@@ -253,6 +255,9 @@ def inside_mode(args, config):
     else:
         # No additional panes, just create new session with agent in detached mode
         subprocess.run(["tmux", "new-session", "-d", "-s", session_name, agent_cmd], check=False)
+        # Configure tmux status bar to not show date/time (causes false positives in change detection)
+        subprocess.run(["tmux", "set-option", "-g", "status-right", f" {args.slug} "], check=False)
+        subprocess.run(["tmux", "set-option", "-g", "status-right-length", "50"], check=False)
 
     # Keep container running - sleep until interrupted
     print("Container running. Press Ctrl+C to exit.")
