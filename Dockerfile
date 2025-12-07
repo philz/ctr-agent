@@ -151,7 +151,8 @@ USER agent
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
 # Install Claude Code native binary (as agent user so it goes to ~/.claude/bin)
-RUN curl -fsSL https://claude.ai/install.sh | bash
+RUN curl -fsSL https://claude.ai/install.sh | bash 
+RUN rm ~/.claude.json
 ENV PATH="/home/agent/.claude/bin:${PATH}"
 
 # Install subtrace

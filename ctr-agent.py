@@ -209,7 +209,8 @@ def inside_mode(args, config):
     # Create symlink for .claude.json to work around directory-only mount limitation
     claude_json_symlink = Path("/home/agent/.claude.json")
     if not claude_json_symlink.exists():
-        claude_json_symlink.symlink_to("/home/agent/.claude/.claude.json")
+        # intentionalyl claude.json not .claude.json
+        claude_json_symlink.symlink_to("/home/agent/.claude/claude.json")
 
     # Get agent command from arguments (passed from outside mode)
     agent_cmd = args.agent_cmd
