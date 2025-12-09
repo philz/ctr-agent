@@ -210,7 +210,7 @@ def inside_mode(args, config):
     claude_json_symlink = Path("/home/agent/.claude.json")
     if not claude_json_symlink.exists():
         # intentionalyl claude.json not .claude.json
-        claude_json_symlink.symlink_to("/home/agent/.claude/claude.json")
+        claude_json_symlink.symlink_to("/home/agent/.claude/.claude.json")
 
     # Get agent command from arguments (passed from outside mode)
     agent_cmd = args.agent_cmd
