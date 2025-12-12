@@ -27,7 +27,6 @@ RUN printf '%s\n' \
       'path-exclude=/usr/share/zoneinfo/*' \
     > /etc/dpkg/dpkg.cfg.d/01_nodoc
 
-# Install system packages (removed chromium, will use headless-shell instead)
 RUN apt-get update; \
 	apt-get install -y --no-install-recommends tmux \
 		ca-certificates wget \
@@ -36,6 +35,7 @@ RUN apt-get update; \
 		make python3-pip python-is-python3 tree net-tools file build-essential \
 		pipx cargo psmisc bsdmainutils openssh-client sudo \
 		unzip util-linux xz-utils \
+		backblaze-b2 atop btop htop \
 		tini \
 		libglib2.0-0 libnss3 libx11-6 libxcomposite1 libxdamage1 \
 		libxext6 libxi6 libxrandr2 libgbm1 libgtk-3-0 \
@@ -151,7 +151,7 @@ USER agent
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
 # Install Claude Code native binary (as agent user so it goes to ~/.claude/bin)
-RUN curl -fsSL https://claude.ai/install.sh | bash 
+RUN date && curl -fsSL https://claude.ai/install.sh | bash 
 RUN rm ~/.claude.json
 ENV PATH="/home/agent/.claude/bin:${PATH}"
 
