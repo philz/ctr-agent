@@ -433,12 +433,14 @@ def outside_mode(args, config):
             "docker", "run", "-d",
             "--hostname", args.slug,
             "--name", args.slug,
+            "--cap-add=SYS_PTRACE",
         ]
     else:
         docker_cmd = [
             "docker", "run", "--rm", "-it",
             "--hostname", args.slug,
             "--name", args.slug,
+            "--cap-add=SYS_PTRACE",
         ]
 
     # Add docker options from config
