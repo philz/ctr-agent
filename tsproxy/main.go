@@ -22,16 +22,27 @@ import (
 )
 
 func main() {
-	name := flag.String("name", "", "Tailscale node name")
-	ports := flag.String("ports", "", "Comma-separated list of ports, ranges, or mixed (e.g., '8000,8001' or '8000-8005' or '8000,8010-8015')")
+	// Get default hostname (short name, up to first dot)
+	defaultName, err := os.Hostname()
+	if err != nil {
+		defaultName = ""
+	} else if idx := strings.Index(defaultName, "."); idx != -1 {
+		defaultName = defaultName[:idx]
+	}
+
+	name := flag.String("name", defaultName, "Tailscale node name")
+	ports := flag.String("ports", "8000-10000", "Comma-separated list of ports, ranges, or mixed (e.g., '8000,8001' or '8000-8005')")
 	allowSelfOnly := flag.Bool("allow-self-only", true, "Only allow requests from the same Tailscale user")
 	magicDNSSuffix := flag.String("magic-dns-suffix", "", "Tailscale MagicDNS suffix for health checking (e.g., 'example.ts.net')")
 	checkInterval := flag.Duration("check-interval", 30*time.Second, "Interval for DNS health checks")
 	flag.Parse()
 
 	authKey := os.Getenv("TS_AUTHKEY")
-	if authKey == "" || *name == "" || *ports == "" {
-		log.Fatal("Usage: TS_AUTHKEY=<key> tsproxy -name=<name> -ports=<ports>")
+	if authKey == "" {
+		log.Fatal("Usage: TS_AUTHKEY=<key> tsproxy [-name=<name>] [-ports=<ports>]")
+	}
+	if *name == "" {
+		log.Fatal("Error: -name is required (hostname detection failed)")
 	}
 
 	portList, err := parsePorts(*ports)
