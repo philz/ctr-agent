@@ -114,6 +114,22 @@ def capture_tmux_pane(container_id: str) -> str:
     return ""
 
 
+def get_branch_commits(branch_name: str) -> List[str]:
+    """Get the last 2 commit subjects for a branch, excluding commits in origin/main."""
+    try:
+        result = subprocess.run(
+            ["git", "log", "-n", "2", "--oneline", branch_name, "^origin/main"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip().split('\n')
+    except Exception:
+        pass
+    return []
+
+
 def update_container_states(containers: List[dict]) -> None:
     """Update the global container states with latest pane content."""
     global container_states
@@ -196,12 +212,21 @@ def generate_html(magic_dns_suffix: Optional[str] = None) -> str:
         escaped_content = html.escape(state.pane_content)
         time_ago = format_time_ago(state.last_change_time)
 
+        # Get branch commits for this container name
+        branch_commits = get_branch_commits(state.name)
+        commits_html = ""
+        if branch_commits:
+            commits_html = '<div class="tile-commits">' + ''.join(
+                f'<div class="commit">{html.escape(c)}</div>' for c in branch_commits
+            ) + '</div>'
+
         tiles_html += f'''
         <a href="{yatty_url}" class="tile" target="_blank">
             <div class="tile-header">
                 <span class="tile-name">{html.escape(state.name)}</span>
                 <span class="tile-time">{time_ago}</span>
             </div>
+            {commits_html}
             <pre class="tile-content">{escaped_content}</pre>
         </a>
         '''
@@ -284,6 +309,19 @@ def generate_html(magic_dns_suffix: Optional[str] = None) -> str:
         .tile-time {{
             font-size: 0.8em;
             color: #888;
+        }}
+
+        .tile-commits {{
+            font-family: "SF Mono", "Monaco", "Inconsolata", "Fira Mono", monospace;
+            font-size: 9px;
+            margin-bottom: 6px;
+            color: #9a9;
+        }}
+
+        .commit {{
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }}
 
         .tile-content {{

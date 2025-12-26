@@ -147,6 +147,9 @@ RUN chown -R agent:agent /opt/node22 /go
 # Switch to agent user
 USER agent
 
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
+
 # Configure git with build-time arguments
 RUN git config --global user.name "${GIT_USER_NAME}" && git config --global user.email "${GIT_USER_EMAIL}"
 
